@@ -19,12 +19,13 @@ decay = 0.9
 num_input = 28  # MNIST data input (img shape: 28*28). -
 time_steps = 28  # time_steps. to h^n propagate
 num_hidden = 128  # hidden layer num of features
-num_classes = 10  # MNIST total classes (0-9 digits) LABELS
+num_classes = 4  # MNIST total classes (0-9 digits) LABELS
+num_channels = 4
 
 
 def run_rnn_net():
     # tf Graph input
-    X = tf.placeholder(tf.float32, [None, time_steps, num_input], name='X')  # 28, 28
+    X = tf.placeholder(tf.float32, [None, time_steps, num_input, num_channels], name='X')  # 28, 28
     Y = tf.placeholder(tf.int32, [None, num_classes], name='Y')  # 10
 
     # variation 1: initializing W1 and b1
@@ -80,7 +81,8 @@ def run_rnn_net():
 
     # initialization
     # open file here
-    mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
+    # mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
+    data = DeepSatData()
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
 
@@ -91,7 +93,7 @@ def run_rnn_net():
 
     # training loop
     for step in range(1, training_steps + 1):
-        batch_x, batch_y = mnist.train.next_batch(batch_size)
+        batch_x, batch_y = data.train.next_batch(batch_size)
         # Reshape data to get 28 seq of 28 elements
         batch_x = batch_x.reshape((batch_size, time_steps, num_input))  # 128, 28, 28
         # Run optimization op (backprop)
@@ -114,8 +116,8 @@ def run_rnn_net():
     # print("--- %s seconds ---" % (time.time() - start_time))
 
     # testing using a batch
-    test_data = mnist.test.images[:batch_size].reshape(-1, time_steps, num_input)
-    test_label = mnist.test.labels[:batch_size]
+    test_data = data.test.images[:batch_size].reshape(-1, time_steps, num_input)
+    test_label = data.test.labels[:batch_size]
     test_acc = sess.run(accuracy, feed_dict={X: test_data, Y: test_label})
     print("Final Testing Accuracy:", test_acc)
 
@@ -274,7 +276,7 @@ def load_mnist_data_test():
 
 if __name__ == "__main__":
     start_time = time.time()
-    # run_rnn_net()
+    run_rnn_net()
     # load_mat_data_test()
-    load_mnist_data_test()
+    # load_mnist_data_test()
     print("--- %s seconds ---" % (time.time() - start_time))

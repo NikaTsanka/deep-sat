@@ -17,10 +17,10 @@ from models.layers import conv_layer, max_pool_2x2, full_layer
 
 
 DATA_PATH = '/home/nikatsanka/Workspace/tensor-env/deep-sat-datasets/sat-4-full.mat'
-BATCH_SIZE = 100
-STEPS = 5000
-lr = 0.2
-decay = 1e-7
+BATCH_SIZE = 200
+STEPS = 10000
+lr = 0.0001
+decay = 1e-9  # .00000001
 momentum = 0.9
 
 
