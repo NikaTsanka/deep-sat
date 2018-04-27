@@ -3,13 +3,14 @@
 
 import time
 import scipy.io
+import numpy as np
 import tensorflow as tf
 from tensorflow.contrib import rnn
 from tensorflow.examples.tutorials.mnist import input_data
 
 # Training Parameters
 DATA_PATH = '/home/nikatsanka/Workspace/tensor-env/deep-sat-datasets/sat-4-full.mat'
-training_steps = 5000
+training_steps = 15625
 batch_size = 128
 display_step = 200
 lr = 0.001
@@ -20,12 +21,12 @@ num_input = 28  # MNIST data input (img shape: 28*28). -
 time_steps = 28  # time_steps. to h^n propagate
 num_hidden = 128  # hidden layer num of features
 num_classes = 4  # MNIST total classes (0-9 digits) LABELS
-num_channels = 4
+# num_channels = 4
 
 
 def run_rnn_net():
     # tf Graph input
-    X = tf.placeholder(tf.float32, [None, time_steps, num_input, num_channels], name='X')  # 28, 28
+    X = tf.placeholder(tf.float32, [None, time_steps, num_input], name='X')  # 28, 28
     Y = tf.placeholder(tf.int32, [None, num_classes], name='Y')  # 10
 
     # variation 1: initializing W1 and b1
@@ -53,12 +54,12 @@ def run_rnn_net():
     # https://medium.com/machine-learning-algorithms/build-basic-rnn-cell-with-static-rnn-707f41d31ee1
     # https://www.dotnetperls.com/stack-tensorflow
     # http://www.wildml.com/2016/08/rnns-in-tensorflow-a-practical-guide-and-undocumented-features/
-    # X_T = tf.unstack(X, time_steps, 1)  # one slice, one peak/look at the image. first row
-    # outputs, states = tf.nn.static_rnn(cell, X_T, dtype=tf.float32)
-    # logits = tf.matmul(outputs[-1], Wl) + bl  # ?????????????????
-    outputs, states = tf.nn.dynamic_rnn(cell, X, dtype=tf.float32)
-    last_rnn_output = outputs[:, -1, :]
-    logits = tf.matmul(last_rnn_output, Wl) + bl
+    X_T = tf.unstack(X, time_steps, 1)  # one slice, one peak/look at the image. first row
+    outputs, states = tf.nn.static_rnn(cell, X_T, dtype=tf.float32)
+    logits = tf.matmul(outputs[-1], Wl) + bl  # ?????????????????
+    # outputs, states = tf.nn.dynamic_rnn(cell, X, dtype=tf.float32)
+    # last_rnn_output = outputs[:, -1, :]
+    # logits = tf.matmul(last_rnn_output, Wl) + bl
 
     prediction = tf.nn.softmax(logits)
     loss_op = tf.losses.softmax_cross_entropy(logits=logits, onehot_labels=Y)
@@ -94,8 +95,12 @@ def run_rnn_net():
     # training loop
     for step in range(1, training_steps + 1):
         batch_x, batch_y = data.train.next_batch(batch_size)
+        # print(batch_x.shape)
+        batch_x = np.dot((batch_x[:, :, :, :])[..., :3], [0.299, 0.587, 0.114])
+        # print(batch_x.shape)
         # Reshape data to get 28 seq of 28 elements
-        batch_x = batch_x.reshape((batch_size, time_steps, num_input))  # 128, 28, 28
+        # batch_x = batch_x.reshape((batch_size, time_steps, num_input))  # 128, 28, 28
+        # print(batch_x.shape)
         # Run optimization op (backprop)
         sess.run(train_op, feed_dict={X: batch_x, Y: batch_y})
 
@@ -114,11 +119,18 @@ def run_rnn_net():
 
     print("Training Finished!")
     # print("--- %s seconds ---" % (time.time() - start_time))
-
+    # print(batch_size)
     # testing using a batch
-    test_data = data.test.images[:batch_size].reshape(-1, time_steps, num_input)
+    test_images = data.test.images[:batch_size]
+    # print(test_images.shape)
+    test_images = np.dot((test_images[:, :, :, :])[..., :3], [0.299, 0.587, 0.114])
+    # print(test_images.shape)
+    # test_data = data.test.images[:batch_size].reshape(-1, time_steps, num_input)
+    # test_data = test_images.reshape(-1, time_steps, num_input)
+    # print(test_data.shape)
+    # test_data = np.dot(test_data[..., :3], [0.299, 0.587, 0.114])
     test_label = data.test.labels[:batch_size]
-    test_acc = sess.run(accuracy, feed_dict={X: test_data, Y: test_label})
+    test_acc = sess.run(accuracy, feed_dict={X: test_images, Y: test_label})
     print("Final Testing Accuracy:", test_acc)
 
     # merged_sum = tf.summary.merge_all()
@@ -136,10 +148,18 @@ class DeepSatLoader:
     def load_data(self):
         data = scipy.io.loadmat(DATA_PATH)
         # print(data['annotations'])
+        # self.images = data[self._key + '_x'].transpose(3, 0, 1, 2)
+        # self.images = self.images
         self.images = data[self._key + '_x'].transpose(3, 0, 1, 2).astype(float) / 255
         self.labels = data[self._key + '_y'].transpose(1, 0)
         # print(self.images.shape)
         # print(self.labels.shape)
+        # print(type(self.images))
+        # print(type(self.labels))
+        '''
+        <class 'numpy.ndarray'>
+        <class 'numpy.ndarray'>
+        '''
         return self
 
     def next_batch(self, batch_size):
@@ -160,7 +180,7 @@ class DeepSatData:
 
 
 def load_mat_data_test():
-    # import matplotlib.pyplot as plt
+    import matplotlib.pyplot as plt
 
     '''
     train
@@ -172,12 +192,12 @@ def load_mat_data_test():
     '''
 
     data = DeepSatData()
-    print('train')
-    print(data.train.images.shape)
-    print(data.train.labels.shape)
-    print('test')
-    print(data.test.images.shape)
-    print(data.test.labels.shape)
+    # print('train')
+    # print(data.train.images.shape)
+    # print(data.train.labels.shape)
+    # print('test')
+    # print(data.test.images.shape)
+    # print(data.test.labels.shape)
 
 
 
@@ -185,23 +205,32 @@ def load_mat_data_test():
     #     batch = data.train.next_batch(100)
     #     print(batch[0].shape)
     #     print(batch[1].shape)
-    # ind = 5
-    # batch = data.train.next_batch(ind)
+    ind = 2
+    batch = data.train.next_batch(ind)
+    plt.figure()
     # print(batch[0][0,0,0,0])
     # print(type(batch[0][0,0,0,0]))
+    plt.imshow(batch[0][1, :, :, :])
+    print(batch[0][0, :, :, :].shape)
+    plt.show()
 
-    # plt.figure()
-    # im = []
+    plt.figure()
+    print(batch[0].shape)
+    print(batch[0][...,:3].shape)
+    im = np.dot((batch[0][:, :, :, :])[..., :3], [0.299, 0.587, 0.114])
+    print(im[1].shape)
+    #newim = im.transpose(1, 2)
     # for i in range(ind):
-    #     im.append(batch[0][:,:,:,i])
-    #     print(batch[1][:,i])
-    # # print(im.shape)
+    #     # im.append(batch[0][:,:,:,i])
+    #     im.append(np.dot(batch[0][...,:3], [0.299, 0.587, 0.114]))
+        # print(batch[1][:,i])
+    # print(im.shape)
     # for i in range(ind):
     #     plt.imshow(im[i])
     #     plt.show()
 
-    # plt.imshow(im)
-    # plt.show()
+    plt.imshow(im[1], cmap = plt.get_cmap('gray'))
+    plt.show()
     # display_cifar(batch[0], 28)
 
     '''
