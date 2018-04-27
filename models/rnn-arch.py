@@ -54,6 +54,7 @@ def run_rnn_net():
     # https://medium.com/machine-learning-algorithms/build-basic-rnn-cell-with-static-rnn-707f41d31ee1
     # https://www.dotnetperls.com/stack-tensorflow
     # http://www.wildml.com/2016/08/rnns-in-tensorflow-a-practical-guide-and-undocumented-features/
+    # print(X.shape) (?, 28, 28)
     X_T = tf.unstack(X, time_steps, 1)  # one slice, one peak/look at the image. first row
     outputs, states = tf.nn.static_rnn(cell, X_T, dtype=tf.float32)
     logits = tf.matmul(outputs[-1], Wl) + bl  # ?????????????????
@@ -75,9 +76,9 @@ def run_rnn_net():
     accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
     # for tensorboard
-    # tf.summary.scalar('loss', loss_op)
-    # tf.summary.scalar('accuracy', accuracy)
-    # merged_sum = tf.summary.merge_all()
+    tf.summary.scalar('loss', loss_op)
+    tf.summary.scalar('accuracy', accuracy)
+    merged_sum = tf.summary.merge_all()
     # start_time = time.time()
 
     # initialization
@@ -89,8 +90,8 @@ def run_rnn_net():
 
     # hparam = 'V3'
 
-    # sum_writer = tf.summary.FileWriter('logs/' + hparam)
-    # sum_writer.add_graph(sess.graph)
+    sum_writer = tf.summary.FileWriter('logs/' + '1d-input-5-epochs')
+    sum_writer.add_graph(sess.graph)
 
     # training loop
     for step in range(1, training_steps + 1):
@@ -104,9 +105,9 @@ def run_rnn_net():
         # Run optimization op (backprop)
         sess.run(train_op, feed_dict={X: batch_x, Y: batch_y})
 
-        # _, summ = sess.run([train_op, merged_sum], feed_dict={X: batch_x, Y: batch_y})
+        _, summ = sess.run([train_op, merged_sum], feed_dict={X: batch_x, Y: batch_y})
 
-        # sum_writer.add_summary(summ, step)
+        sum_writer.add_summary(summ, step)
 
         if step % display_step == 0 or step == 1:
             # Calculate batch loss and accuracy
@@ -135,7 +136,7 @@ def run_rnn_net():
 
     # merged_sum = tf.summary.merge_all()
 
-    # sum_writer.close()
+    sum_writer.close()
 
 
 class DeepSatLoader:

@@ -1,13 +1,3 @@
-'''
-Project 2 - Bonus Report Mnist-CNN
-
-Members: David Ng Wu, Nika Tsankashvili and Jamila Vargas
-04/03/2018
-High Performance Machine Learning
-Prof. Jianting Zhang
-
-'''
-
 import time
 import numpy as np
 import scipy.io
