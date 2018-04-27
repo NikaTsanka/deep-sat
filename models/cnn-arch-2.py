@@ -3,19 +3,22 @@ import numpy as np
 import scipy.io
 import tensorflow as tf
 from models.layers import conv_layer, max_pool_2x2, full_layer
-# from tensorflow.examples.tutorials.mnist import input_data
 
 
 DATA_PATH = '/home/nikatsanka/Workspace/tensor-env/deep-sat-datasets/sat-4-full.mat'
 BATCH_SIZE = 100
-STEPS = 5000
+STEPS = 80000 #epoch 20
 lr = 0.0001
+#epoch = steps * batchsize / totalbatch
+# decay = 1e-9  # .00000001
 decay = 1e-7  # .00000001
 momentum = 0.9
+dropoutProb = 0.5
 
+config = tf.ConfigProto()
+config.gpu_options.per_process_gpu_memory_fraction = 0.7
 
 def run_simple_net():
-    # mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
     dataset = DeepSatData()
 
     x = tf.placeholder(tf.float32, shape=[None, 28, 28, 4])
@@ -52,53 +55,45 @@ def run_simple_net():
     predict = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=full_3, labels=y_))
 
     train_step = tf.train.RMSPropOptimizer(lr, decay, momentum).minimize(predict)
+    # train_step = tf.train.AdamOptimizer(lr)
 
     correct_prediction = tf.equal(tf.argmax(full_3, 1), tf.argmax(y_, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-
-    # full1_drop = tf.nn.dropout(full_1, keep_prob=keep_prob)
-    # y_conv = full_layer(full1_drop, 10)
-    #
-    # cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=y_conv,
-    #                                                                        labels=y_))
-    #
-    # train_step = tf.train.AdamOptimizer(lr).minimize(cross_entropy)
-    #
-    # correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
-    # accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-    #
-    tf.summary.scalar('loss', predict)
-    tf.summary.scalar('accuracy', accuracy)
-    merged_sum = tf.summary.merge_all()
 
     def test(sess):
         X = dataset.test.images.reshape(10, 10000, 28, 28, 4)
         Y = dataset.test.labels.reshape(10, 10000, 4)
         acc = np.mean([sess.run(accuracy, feed_dict={x: X[i], y_: Y[i], keep_prob: 1.0})
                        for i in range(10)])
-        print("Accuracy: {:.4}%".format(acc * 100))
+        return acc
 
-    with tf.Session() as sess:
+
+    with tf.Session(config=config) as sess:
         sess.run(tf.global_variables_initializer())
-        sum_writer = tf.summary.FileWriter('logs/' + 'default')
-        sum_writer.add_graph(sess.graph)
+        # sum_writer = tf.summary.FileWriter('logs/' + 'default')
+        # sum_writer.add_graph(sess.graph)
 
         for i in range(STEPS):
             batch = dataset.train.next_batch(BATCH_SIZE)
             batch_x = batch[0]
             batch_y = batch[1]
 
-            _, summ = sess.run([train_step, merged_sum], feed_dict={x: batch_x, y_: batch_y, keep_prob: 0.5})
-            sum_writer.add_summary(summ, i)
+            # _, summ = sess.run([train_step, merged_sum], feed_dict={x: batch_x, y_: batch_y, keep_prob: 0.5})
+            # sum_writer.add_summary(summ, i)
 
-            sess.run(train_step, feed_dict={x: batch_x, y_: batch_y, keep_prob: 0.5})
+            sess.run(train_step, feed_dict={x: batch_x, y_: batch_y, keep_prob: dropoutProb})
 
+            epoch = 4000
+            if i % epoch == 0:
+                print("\n*****************EPOCH: %d" % (i/epoch))
             if i % 500 == 0:
-                test(sess)
+                acc = test(sess)
+                loss = sess.run(predict, feed_dict={x: batch_x, y_: batch_y, keep_prob: dropoutProb})
+                print("EPOCH:%d" % (i/epoch) + " Step:" + str(i) + "|| Minibatch Loss= " + "{:.4f}".format(loss) + " Accuracy: {:.4}%".format(acc * 100))
 
         test(sess)
-        sum_writer.close()
+        # sum_writer.close()
 
 
 class DeepSatLoader:
@@ -110,7 +105,6 @@ class DeepSatLoader:
 
     def load_data(self):
         data = scipy.io.loadmat(DATA_PATH)
-        # print(data['annotations'])
         self.images = data[self._key + '_x'].transpose(3, 0, 1, 2).astype(float) / 255
         self.labels = data[self._key + '_y'].transpose(1, 0)
         print(self.images.shape)
@@ -118,10 +112,6 @@ class DeepSatLoader:
         return self
 
     def next_batch(self, batch_size):
-        # ellipsis (…) to make a selection tuple of the
-        # same length as the dimension of an array.
-        # x = self.images[..., self._i:self._i+batch_size]
-        # y = self.labels[..., self._i:self._i+batch_size]
         x = self.images[self._i:self._i+batch_size]
         y = self.labels[self._i:self._i+batch_size]
         self._i = (self._i + batch_size) % len(self.images)
@@ -135,7 +125,7 @@ class DeepSatData:
 
 
 def load_mat_data():
-    import matplotlib.pyplot as plt
+    # import matplotlib.pyplot as plt
 
     data = DeepSatData()
 
