@@ -6,17 +6,36 @@ from models.layers import conv_layer, max_pool_2x2, full_layer
 
 
 DATA_PATH = '/home/nikatsanka/Workspace/tensor-env/deep-sat-datasets/sat-4-full.mat'
-BATCH_SIZE = 100
-STEPS = 80000 #epoch 20
+# HYPERS
+NUM_SAMPLES = 400000
+EPOCHS = 5
+BATCH_SIZE = 128
+STEPS = int((NUM_SAMPLES * EPOCHS) / BATCH_SIZE)
+ONE_EPOCH = int(NUM_SAMPLES / BATCH_SIZE)
+TEST_INTERVAL = BATCH_SIZE * 5
+MODELS_TO_KEEP = 5
 lr = 0.0001
-#epoch = steps * batchsize / totalbatch
-# decay = 1e-9  # .00000001
-decay = 1e-7  # .00000001
-momentum = 0.9
+decay = 0.9
+momentum = 0
 dropoutProb = 0.5
 
-config = tf.ConfigProto()
-config.gpu_options.per_process_gpu_memory_fraction = 0.7
+log_name = 'V1-CURRENT'
+
+print('HYPER_PARAMETERS_USED')
+print('---------------------')
+print('NUM_SAMPLES:', NUM_SAMPLES)
+print('EPOCHS:', EPOCHS)
+print('BATCH_SIZE:', BATCH_SIZE)
+print('STEPS:', STEPS)
+print('LEARNING_RATE:', lr)
+print('DECAY:', decay)
+print('MOMENTUM:', momentum)
+print('DROPOUT:', dropoutProb)
+
+
+# config = tf.ConfigProto()
+# config.gpu_options.per_process_gpu_memory_fraction = 0.7
+
 
 def run_simple_net():
     dataset = DeepSatData()
@@ -60,40 +79,50 @@ def run_simple_net():
     correct_prediction = tf.equal(tf.argmax(full_3, 1), tf.argmax(y_, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
+    tf.summary.scalar('loss', predict)
+    tf.summary.scalar('accuracy', accuracy)
+    merged_sum = tf.summary.merge_all()
 
-    def test(sess):
-        X = dataset.test.images.reshape(10, 10000, 28, 28, 4)
-        Y = dataset.test.labels.reshape(10, 10000, 4)
-        acc = np.mean([sess.run(accuracy, feed_dict={x: X[i], y_: Y[i], keep_prob: 1.0})
-                       for i in range(10)])
-        return acc
+    def test(test_sess):
+        x_ = dataset.test.images.reshape(10, 10000, 28, 28, 4)
+        y = dataset.test.labels.reshape(10, 10000, 4)
+        test_acc = np.mean([test_sess.run(accuracy, feed_dict={x: x_[im], y_: y[im], keep_prob: 1.0})
+                            for im in range(10)])
+        return test_acc
 
-
-    with tf.Session(config=config) as sess:
+    # config=config
+    with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        # sum_writer = tf.summary.FileWriter('logs/' + 'default')
-        # sum_writer.add_graph(sess.graph)
+        # tensorboard
+        sum_writer = tf.summary.FileWriter('logs/' + log_name)
+        sum_writer.add_graph(sess.graph)
+
+        # Create a Saver object
+        saver = tf.train.Saver(max_to_keep=MODELS_TO_KEEP)
 
         for i in range(STEPS):
             batch = dataset.train.next_batch(BATCH_SIZE)
             batch_x = batch[0]
             batch_y = batch[1]
 
-            # _, summ = sess.run([train_step, merged_sum], feed_dict={x: batch_x, y_: batch_y, keep_prob: 0.5})
-            # sum_writer.add_summary(summ, i)
-
             sess.run(train_step, feed_dict={x: batch_x, y_: batch_y, keep_prob: dropoutProb})
 
-            epoch = 4000
-            if i % epoch == 0:
-                print("\n*****************EPOCH: %d" % (i/epoch))
-            if i % 500 == 0:
+            _, summ = sess.run([train_step, merged_sum], feed_dict={x: batch_x, y_: batch_y, keep_prob: dropoutProb})
+            sum_writer.add_summary(summ, i)
+
+            if i % ONE_EPOCH == 0:
+                print("\n*****************EPOCH: %d" % ((i/ONE_EPOCH) + 1))
+            if i % TEST_INTERVAL == 0:
                 acc = test(sess)
                 loss = sess.run(predict, feed_dict={x: batch_x, y_: batch_y, keep_prob: dropoutProb})
-                print("EPOCH:%d" % (i/epoch) + " Step:" + str(i) + "|| Minibatch Loss= " + "{:.4f}".format(loss) + " Accuracy: {:.4}%".format(acc * 100))
+                print("EPOCH:%d" % ((i/ONE_EPOCH) + 1) + " Step:" + str(i) + "|| Minibatch Loss= " +
+                      "{:.4f}".format(loss) + " Accuracy: {:.4}%".format(acc * 100))
+                # Create a checkpoint in every iteration
+                saver.save(sess, './saved-models/cnn-model_iter',
+                           global_step=i)
 
         test(sess)
-        # sum_writer.close()
+        sum_writer.close()
 
 
 class DeepSatLoader:
@@ -107,8 +136,8 @@ class DeepSatLoader:
         data = scipy.io.loadmat(DATA_PATH)
         self.images = data[self._key + '_x'].transpose(3, 0, 1, 2).astype(float) / 255
         self.labels = data[self._key + '_y'].transpose(1, 0)
-        print(self.images.shape)
-        print(self.labels.shape)
+        # print(self.images.shape)
+        # print(self.labels.shape)
         return self
 
     def next_batch(self, batch_size):
