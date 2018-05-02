@@ -9,7 +9,7 @@ from models.layers import conv_layer, max_pool_2x2, full_layer
 DATA_PATH = '/home/nikatsanka/Workspace/tensor-env/deep-sat-datasets/sat-4-full.mat'
 # HYPERS
 NUM_SAMPLES = 400000
-EPOCHS = 3
+EPOCHS = 1
 BATCH_SIZE = 128
 STEPS = int((NUM_SAMPLES * EPOCHS) / BATCH_SIZE)
 ONE_EPOCH = int(NUM_SAMPLES / BATCH_SIZE)
@@ -20,7 +20,7 @@ decay = 0.9
 momentum = 0
 dropoutProb = 0.5
 
-version = 'V1'
+version = 'test'
 output_dir = 'results-for-' + str(EPOCHS) + 'e' + str(BATCH_SIZE) + 'bs-' + version
 log_dir = os.path.join(output_dir, 'logs')
 log_name = 'lr' + str(lr) + 'd' + str(decay) + 'm' + str(momentum) + 'do' + str(dropoutProb)
@@ -78,9 +78,9 @@ class DeepSatData:
 def cnn_model_trainer():
     dataset = DeepSatData()
 
-    x = tf.placeholder(tf.float32, shape=[None, 28, 28, 4])
-    y_ = tf.placeholder(tf.float32, shape=[None, 4])
-    keep_prob = tf.placeholder(tf.float32)
+    x = tf.placeholder(tf.float32, shape=[None, 28, 28, 4], name='x')
+    y_ = tf.placeholder(tf.float32, shape=[None, 4], name='y_')
+    keep_prob = tf.placeholder(tf.float32, name='keep_prob')
 
     conv1 = conv_layer(x, shape=[3, 3, 4, 16], pad='VALID')
     conv1_pool = max_pool_2x2(conv1, 2, 2)
@@ -115,7 +115,7 @@ def cnn_model_trainer():
     # train_step = tf.train.AdamOptimizer(lr)
 
     correct_prediction = tf.equal(tf.argmax(full_3, 1), tf.argmax(y_, 1))
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32), name='accuracy')
 
     tf.summary.scalar('loss', predict)
     tf.summary.scalar('accuracy', accuracy)

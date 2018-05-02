@@ -3,7 +3,6 @@ import time
 import numpy as np
 import scipy.io
 import tensorflow as tf
-from models.layers import conv_layer, max_pool_2x2, full_layer
 
 
 DATA_PATH = '/home/nikatsanka/Workspace/tensor-env/deep-sat-datasets/sat-4-full.mat'
@@ -41,31 +40,33 @@ class DeepSatData:
 def cnn_model_loader():
     # test_batch_size = 500
     data = DeepSatData()
-    test_images = data.test.images[:TEST_BATCH_SIZE]
-    test_images = np.dot((test_images[:, :, :, :])[..., :3], [0.299, 0.587, 0.114])
-    test_label = data.test.labels[:TEST_BATCH_SIZE]
+    test_images = data.test.images.reshape(10, 10000, 28, 28, 4)
+    test_label = data.test.labels.reshape(10, 10000, 4)
     # restore the training graph
     with tf.Session() as sess:
         # init = tf.global_variables_initializer()
         # sess.run(init)
         # First let's load meta graph and restore weights
-        loader = tf.train.import_meta_graph('./saved-models/model_iter-19600.meta')
-        loader.restore(sess, tf.train.latest_checkpoint('./saved-models/'))
+        loader = tf.train.import_meta_graph('./results-for-1e128bs-test/trained_models/saved_at_step--2560.meta')
+        loader.restore(sess, tf.train.latest_checkpoint('./results-for-1e128bs-test/trained_models/'))
 
         # Now, let's access and create placeholders variables and
         # create feed-dict to feed new data
 
         graph = tf.get_default_graph()
-        X = graph.get_tensor_by_name("X:0")
-        Y = graph.get_tensor_by_name("Y:0")
+        X = graph.get_tensor_by_name("x:0")
+        Y = graph.get_tensor_by_name("y_:0")
+        keep_prob = graph.get_tensor_by_name("keep_prob:0")
 
         # Now, access the optimizer that you want to run.
         # prediction = graph.get_tensor_by_name("pred:0")
         accuracy = graph.get_tensor_by_name("accuracy:0")
 
         # pred_out = sess.run(prediction, feed_dict={X: test_images})
-        test_acc = sess.run(accuracy, feed_dict={X: test_images, Y: test_label})
+        test_acc = np.mean([sess.run(accuracy, feed_dict={X: test_images[im], Y: test_label[im], keep_prob: 1.0})
+                            for im in range(10)])
         print("Testing Accuracy:", test_acc)
+
 
 if __name__ == "__main__":
     start_time = time.time()
