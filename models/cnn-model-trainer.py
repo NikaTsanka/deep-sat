@@ -1,3 +1,4 @@
+import os
 import time
 import numpy as np
 import scipy.io
@@ -8,7 +9,7 @@ from models.layers import conv_layer, max_pool_2x2, full_layer
 DATA_PATH = '/home/nikatsanka/Workspace/tensor-env/deep-sat-datasets/sat-4-full.mat'
 # HYPERS
 NUM_SAMPLES = 400000
-EPOCHS = 5
+EPOCHS = 3
 BATCH_SIZE = 128
 STEPS = int((NUM_SAMPLES * EPOCHS) / BATCH_SIZE)
 ONE_EPOCH = int(NUM_SAMPLES / BATCH_SIZE)
@@ -19,25 +20,62 @@ decay = 0.9
 momentum = 0
 dropoutProb = 0.5
 
-log_name = 'V1-CURRENT'
+version = 'V1'
+output_dir = 'results-for-' + str(EPOCHS) + 'e' + str(BATCH_SIZE) + 'bs-' + version
+log_dir = os.path.join(output_dir, 'logs')
+log_name = 'lr' + str(lr) + 'd' + str(decay) + 'm' + str(momentum) + 'do' + str(dropoutProb)
+output_file = 'output.txt'
+model_dir = os.path.join(output_dir, 'trained_models')
+model_name = 'saved_at_step-'
 
-print('HYPER_PARAMETERS_USED')
-print('---------------------')
-print('NUM_SAMPLES:', NUM_SAMPLES)
-print('EPOCHS:', EPOCHS)
-print('BATCH_SIZE:', BATCH_SIZE)
-print('STEPS:', STEPS)
-print('LEARNING_RATE:', lr)
-print('DECAY:', decay)
-print('MOMENTUM:', momentum)
-print('DROPOUT:', dropoutProb)
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+
+write_to_file = open(os.path.join(output_dir, output_file), 'w')
+write_to_file.write('HYPER_PARAMETERS_USED')
+write_to_file.write('\n---------------------')
+write_to_file.write('\nNUM_SAMPLES:' + str(NUM_SAMPLES))
+write_to_file.write('\nEPOCHS:' + str(EPOCHS))
+write_to_file.write('\nBATCH_SIZE:' + str(BATCH_SIZE))
+write_to_file.write('\nSTEPS:' + str(STEPS))
+write_to_file.write('\nLEARNING_RATE:' + str(lr))
+write_to_file.write('\nDECAY:' + str(decay))
+write_to_file.write('\nMOMENTUM:' + str(momentum))
+write_to_file.write('\nDROPOUT:' + str(dropoutProb))
 
 
 # config = tf.ConfigProto()
 # config.gpu_options.per_process_gpu_memory_fraction = 0.7
 
+class DeepSatLoader:
+    def __init__(self, key):
+        self._key = key
+        self._i = 0
+        self.images = None
+        self.labels = None
 
-def run_simple_net():
+    def load_data(self):
+        data = scipy.io.loadmat(DATA_PATH)
+        self.images = data[self._key + '_x'].transpose(3, 0, 1, 2).astype(float) / 255
+        self.labels = data[self._key + '_y'].transpose(1, 0)
+        # print(self.images.shape)
+        # print(self.labels.shape)
+        return self
+
+    def next_batch(self, batch_size):
+        x = self.images[self._i:self._i+batch_size]
+        y = self.labels[self._i:self._i+batch_size]
+        self._i = (self._i + batch_size) % len(self.images)
+        return x, y
+
+
+class DeepSatData:
+    def __init__(self):
+        self.train = DeepSatLoader('train').load_data()
+        self.test  = DeepSatLoader('test').load_data()
+
+
+def cnn_model_trainer():
     dataset = DeepSatData()
 
     x = tf.placeholder(tf.float32, shape=[None, 28, 28, 4])
@@ -94,7 +132,7 @@ def run_simple_net():
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         # tensorboard
-        sum_writer = tf.summary.FileWriter('logs/' + log_name)
+        sum_writer = tf.summary.FileWriter(os.path.join(log_dir, log_name))
         sum_writer.add_graph(sess.graph)
 
         # Create a Saver object
@@ -111,49 +149,26 @@ def run_simple_net():
             sum_writer.add_summary(summ, i)
 
             if i % ONE_EPOCH == 0:
-                print("\n*****************EPOCH: %d" % ((i/ONE_EPOCH) + 1))
+                ep_print = "\n*****************EPOCH: %d" % ((i/ONE_EPOCH) + 1)
+                write_to_file.write(ep_print)
+                print(ep_print)
             if i % TEST_INTERVAL == 0:
                 acc = test(sess)
                 loss = sess.run(predict, feed_dict={x: batch_x, y_: batch_y, keep_prob: dropoutProb})
-                print("EPOCH:%d" % ((i/ONE_EPOCH) + 1) + " Step:" + str(i) + "|| Minibatch Loss= " +
-                      "{:.4f}".format(loss) + " Accuracy: {:.4}%".format(acc * 100))
+                ep_test_print = "\nEPOCH:%d" % ((i/ONE_EPOCH) + 1) + " Step:" + str(i) + \
+                                "|| Minibatch Loss= " + "{:.4f}".format(loss) + \
+                                " Accuracy: {:.4}%".format(acc * 100)
+                write_to_file.write(ep_test_print)
+                print(ep_test_print)
                 # Create a checkpoint in every iteration
-                saver.save(sess, './saved-models/cnn-model_iter',
+                saver.save(sess, os.path.join(model_dir, model_name),
                            global_step=i)
 
         test(sess)
         sum_writer.close()
 
 
-class DeepSatLoader:
-    def __init__(self, key):
-        self._key = key
-        self._i = 0
-        self.images = None
-        self.labels = None
-
-    def load_data(self):
-        data = scipy.io.loadmat(DATA_PATH)
-        self.images = data[self._key + '_x'].transpose(3, 0, 1, 2).astype(float) / 255
-        self.labels = data[self._key + '_y'].transpose(1, 0)
-        # print(self.images.shape)
-        # print(self.labels.shape)
-        return self
-
-    def next_batch(self, batch_size):
-        x = self.images[self._i:self._i+batch_size]
-        y = self.labels[self._i:self._i+batch_size]
-        self._i = (self._i + batch_size) % len(self.images)
-        return x, y
-
-
-class DeepSatData:
-    def __init__(self):
-        self.train = DeepSatLoader('train').load_data()
-        self.test  = DeepSatLoader('test').load_data()
-
-
-def load_mat_data():
+def mat_data_load_test():
     # import matplotlib.pyplot as plt
 
     data = DeepSatData()
@@ -216,6 +231,9 @@ def load_mat_data():
 
 if __name__ == "__main__":
     start_time = time.time()
-    run_simple_net()
-    # load_mat_data()
-    print("--- %s seconds ---" % (time.time() - start_time))
+    cnn_model_trainer()
+    # mat_data_load_test()
+    time_stop = "\n--- %s seconds ---" % (time.time() - start_time)
+    write_to_file.write(time_stop)
+    print(time_stop)
+    write_to_file.close()
