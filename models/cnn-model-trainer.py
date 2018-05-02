@@ -77,7 +77,7 @@ class DeepSatData:
 
 def cnn_model_trainer():
     dataset = DeepSatData()
-    # TEST
+
     x = tf.placeholder(tf.float32, shape=[None, 28, 28, 4], name='x')
     y_ = tf.placeholder(tf.float32, shape=[None, 4], name='y_')
     keep_prob = tf.placeholder(tf.float32, name='keep_prob')
