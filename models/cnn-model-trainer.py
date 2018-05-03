@@ -79,16 +79,6 @@ class DeepSatData:
         self.test  = DeepSatLoader('test').load_data()
 
 
-def create_tsv(ds):
-    # Creates the labels for the last 10,000 pictures
-    labels = ['barren land', 'trees', 'grassland', 'none']
-    with open('metadata.tsv', 'w') as f:
-        y = ds.test.labels[-10000:]
-        for i in range(10000):
-            argmax = int(np.argmax(y[i]))
-            f.write("%s \n" % labels[argmax])
-
-
 def cnn_model_trainer():
     dataset = DeepSatData()
 
@@ -207,15 +197,56 @@ def cnn_model_trainer():
         sum_writer.close()
 
 
+def create_tsv(ds):
+    # Creates the labels for the last 10,000 pictures
+    labels = ['barren land', 'trees', 'grassland', 'none']
+    with open('metadata.tsv', 'w') as f:
+        y = ds.test.labels[-10000:]
+        for i in range(10000):
+            argmax = int(np.argmax(y[i]))
+            f.write("%s \n" % labels[argmax])
+
+
+def create_sprite_image(images):
+    # print(type(images))
+    # if isinstance(images, list):
+    #     print('TRUE')
+    #     images = np.array(images)
+    img_h = images.shape[1]  # 28
+    img_w = images.shape[2]  # 28
+    n_plots = int(np.ceil(np.sqrt(images.shape[0])))  # 100
+
+    spriteimage = np.ones((img_h * n_plots ,img_w * n_plots, 3))  # (2800, 2800)
+
+    for i in range(n_plots):
+        for j in range(n_plots):
+            this_filter = i * n_plots + j
+            if this_filter < images.shape[0]:
+                this_img = images[this_filter]
+                spriteimage[i * img_h:(i + 1) * img_h, j * img_w:(j + 1) * img_w] = this_img
+
+    return spriteimage
+
+
 def mat_data_load_test():
-    # import matplotlib.pyplot as plt
+    import matplotlib.pyplot as plt
 
     data = DeepSatData()
 
-    print(data.train.images.shape)
-    print(data.train.labels.shape)
+    # (10000, 28, 28, 3)
+    ps = data.test.images[-10000:][..., :3]
 
-    create_tsv(data)
+    sprite = create_sprite_image(ps)
+    plt.imsave('sprite.png', sprite, cmap='Greys')
+
+    print(ps.shape)
+    # print(data.train.images.shape)
+    # print(data.train.labels.shape)
+    # (400000, 28, 28, 4)
+    # (400000, 4)
+
+
+    # create_tsv(data)
 
     # for i in range(4):
     #     batch = data.train.next_batch(100)
