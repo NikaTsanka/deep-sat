@@ -6,7 +6,9 @@ import tensorflow as tf
 from models.layers import conv_layer, max_pool_2x2, full_layer
 
 
-DATA_PATH = '/home/nikatsanka/Workspace/tensor-env/deep-sat-datasets/sat-4-full.mat'
+# DATA_PATH = '/home/nikatsanka/Workspace/tensor-env/deep-sat-datasets/sat-4-full.mat'
+DATA_PATH = 'dataset/sat-4-full.mat'
+
 # HYPERS
 NUM_SAMPLES = 400000
 EPOCHS = 1
@@ -20,7 +22,9 @@ decay = 0.9
 momentum = 0
 dropoutProb = 0.5
 
-version = 'adam-test0'
+LABELS = os.path.join(os.getcwd(), "label_last10000.tsv")  # Label path for visualization
+
+version = 'test'
 output_dir = 'results-for-' + str(EPOCHS) + 'e' + str(BATCH_SIZE) + 'bs-' + version
 log_dir = os.path.join(output_dir, 'logs')
 log_name = 'lr' + str(lr) + 'd' + str(decay) + 'm' + str(momentum) + 'do' + str(dropoutProb)
@@ -123,13 +127,25 @@ def cnn_model_trainer():
 
     tf.summary.scalar('loss', cross_entropy)
     tf.summary.scalar('accuracy', accuracy)
+
+    # Setting up for the visualization of the data in Tensorboard
+    embedding_size = 200    # size of second to last fc layer
+    embedding_input = full_2    #FC2 as input
+    # Variable containing the points in visualization
+    embedding = tf.Variable(tf.zeros([10000, embedding_size]), name="test_embedding")
+    assignment = embedding.assign(embedding_input)  # Will be passed in the test session
+
     merged_sum = tf.summary.merge_all()
 
-    def test(test_sess):
+    def test(test_sess, assign):
         x_ = dataset.test.images.reshape(10, 10000, 28, 28, 4)
         y = dataset.test.labels.reshape(10, 10000, 4)
+
         test_acc = np.mean([test_sess.run(accuracy, feed_dict={x: x_[im], y_: y[im], keep_prob: 1.0})
                             for im in range(10)])
+
+        # Pass through the last 10,000 of the test set for visualization
+        test_sess.run([assign], feed_dict={x: x_[9], y_: y[9], keep_prob: 1.0})
         return test_acc
 
     # config=config
@@ -140,7 +156,19 @@ def cnn_model_trainer():
         sum_writer.add_graph(sess.graph)
 
         # Create a Saver object
+        #max_to_keep: keep how many models to keep. Delete old ones.
         saver = tf.train.Saver(max_to_keep=MODELS_TO_KEEP)
+
+
+        # setting up Projector
+        config = tf.contrib.tensorboard.plugins.projector.ProjectorConfig()
+        embedding_config = config.embeddings.add()
+        embedding_config.tensor_name = embedding.name
+        embedding_config.metadata_path = LABELS     #labels
+        # Specify the width and height of a single thumbnail.
+        # embedding_config.sprite.image_path = SPRITES
+        # embedding_config.sprite.single_image_dim.extend([28, 28])
+        tf.contrib.tensorboard.plugins.projector.visualize_embeddings(sum_writer, config)
 
         for i in range(STEPS):
             batch = dataset.train.next_batch(BATCH_SIZE)
@@ -157,7 +185,7 @@ def cnn_model_trainer():
                 write_to_file.write(ep_print)
                 print(ep_print)
             if i % TEST_INTERVAL == 0:
-                acc = test(sess)
+                acc = test(sess, assignment)
                 loss = sess.run(cross_entropy, feed_dict={x: batch_x, y_: batch_y, keep_prob: dropoutProb})
                 ep_test_print = "\nEPOCH:%d" % ((i/ONE_EPOCH) + 1) + " Step:" + str(i) + \
                                 "|| Minibatch Loss= " + "{:.4f}".format(loss) + \
@@ -165,20 +193,64 @@ def cnn_model_trainer():
                 write_to_file.write(ep_test_print)
                 print(ep_test_print)
                 # Create a checkpoint in every iteration
-                saver.save(sess, os.path.join(model_dir, model_name),
-                           global_step=i)
+                # saver.save(sess, os.path.join(model_dir, model_name),
+                #            global_step=i)
+                saver.save(sess, os.path.join(model_dir, 'model.ckpt'), global_step=i)
 
-        test(sess)
+        test(sess, assignment)
         sum_writer.close()
 
 
+def create_tsv(ds):
+    # Creates the labels for the last 10,000 pictures
+    labels = ['barren land', 'trees', 'grassland', 'none']
+    with open('metadata.tsv', 'w') as f:
+        y = ds.test.labels[-10000:]
+        for i in range(10000):
+            argmax = int(np.argmax(y[i]))
+            f.write("%s \n" % labels[argmax])
+
+
+def create_sprite_image(images):
+    # print(type(images))
+    # if isinstance(images, list):
+    #     print('TRUE')
+    #     images = np.array(images)
+    img_h = images.shape[1]  # 28
+    img_w = images.shape[2]  # 28
+    n_plots = int(np.ceil(np.sqrt(images.shape[0])))  # 100
+
+    spriteimage = np.ones((img_h * n_plots ,img_w * n_plots, 3))  # (2800, 2800)
+
+    for i in range(n_plots):
+        for j in range(n_plots):
+            this_filter = i * n_plots + j
+            if this_filter < images.shape[0]:
+                this_img = images[this_filter]
+                spriteimage[i * img_h:(i + 1) * img_h, j * img_w:(j + 1) * img_w] = this_img
+
+    return spriteimage
+
+
 def mat_data_load_test():
-    # import matplotlib.pyplot as plt
+    import matplotlib.pyplot as plt
 
     data = DeepSatData()
 
-    print(data.train.images.shape)
-    print(data.train.labels.shape)
+    # (10000, 28, 28, 3)
+    ps = data.test.images[-10000:][..., :3]
+
+    sprite = create_sprite_image(ps)
+    plt.imsave('sprite.png', sprite, cmap='Greys')
+
+    print(ps.shape)
+    # print(data.train.images.shape)
+    # print(data.train.labels.shape)
+    # (400000, 28, 28, 4)
+    # (400000, 4)
+
+
+    # create_tsv(data)
 
     # for i in range(4):
     #     batch = data.train.next_batch(100)
