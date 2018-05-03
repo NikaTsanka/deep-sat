@@ -3,7 +3,6 @@ import time
 import numpy as np
 import scipy.io
 import tensorflow as tf
-from tensorflow.contrib.tensorboard.plugins import projector
 from models.layers import conv_layer, max_pool_2x2, full_layer
 
 
@@ -23,7 +22,7 @@ decay = 0.9
 momentum = 0
 dropoutProb = 0.5
 
-LABELS = os.path.join(os.getcwd(), "label_last10000.tsv")
+LABELS = os.path.join(os.getcwd(), "label_last10000.tsv")  # Label path for visualization
 
 version = 'test'
 output_dir = 'results-for-' + str(EPOCHS) + 'e' + str(BATCH_SIZE) + 'bs-' + version
@@ -79,7 +78,9 @@ class DeepSatData:
         self.train = DeepSatLoader('train').load_data()
         self.test  = DeepSatLoader('test').load_data()
 
+
 def create_tsv(ds):
+    # Creates the labels for the last 10,000 pictures
     labels = ['barren land', 'trees', 'grassland', 'none']
     with open('metadata.tsv', 'w') as f:
         y = ds.test.labels[-10000:]
@@ -133,25 +134,24 @@ def cnn_model_trainer():
     tf.summary.scalar('loss', predict)
     tf.summary.scalar('accuracy', accuracy)
 
+    # Setting up for the visualization of the data in Tensorboard
     embedding_size = 200    # size of second to last fc layer
-    embedding_input = full_2
+    embedding_input = full_2    #FC2 as input
+    # Variable containing the points in visualization
     embedding = tf.Variable(tf.zeros([10000, embedding_size]), name="test_embedding")
-    assignment = embedding.assign(embedding_input)
+    assignment = embedding.assign(embedding_input)  # Will be passed in the test session
 
     merged_sum = tf.summary.merge_all()
 
     def test(test_sess, assign):
         x_ = dataset.test.images.reshape(10, 10000, 28, 28, 4)
         y = dataset.test.labels.reshape(10, 10000, 4)
-        # test_acc = [test_sess.run([accuracy, assign], feed_dict={x: x_[im], y_: y[im], keep_prob: 1.0})
-        #                     for im in range(10)]
-        # test = list(zip(*test_acc))[0]  #gets the first item of each sublist in a list
-        # acc = np.mean(test)
 
         test_acc = np.mean([test_sess.run(accuracy, feed_dict={x: x_[im], y_: y[im], keep_prob: 1.0})
-                            for im in range(9)])
+                            for im in range(10)])
 
-        test_sess.run(assign, feed_dict={x: x_[9], y_: y[9], keep_prob: 1.0})
+        # Pass through the last 10,000 of the test set for visualization
+        test_sess.run([assign], feed_dict={x: x_[9], y_: y[9], keep_prob: 1.0})
         return test_acc
 
     # config=config
@@ -166,13 +166,13 @@ def cnn_model_trainer():
         saver = tf.train.Saver(max_to_keep=MODELS_TO_KEEP)
 
 
-        # Projector
+        # setting up Projector
         config = tf.contrib.tensorboard.plugins.projector.ProjectorConfig()
         embedding_config = config.embeddings.add()
         embedding_config.tensor_name = embedding.name
-        # embedding_config.sprite.image_path = SPRITES
-        embedding_config.metadata_path = LABELS
+        embedding_config.metadata_path = LABELS     #labels
         # Specify the width and height of a single thumbnail.
+        # embedding_config.sprite.image_path = SPRITES
         # embedding_config.sprite.single_image_dim.extend([28, 28])
         tf.contrib.tensorboard.plugins.projector.visualize_embeddings(sum_writer, config)
 
