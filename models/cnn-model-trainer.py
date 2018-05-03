@@ -23,6 +23,7 @@ momentum = 0
 dropoutProb = 0.5
 
 LABELS = os.path.join(os.getcwd(), "label_last10000.tsv")  # Label path for visualization
+SPRITES = os.path.join(os.getcwd(), "sprite.png")
 
 version = 'test'
 output_dir = 'results-for-' + str(EPOCHS) + 'e' + str(BATCH_SIZE) + 'bs-' + version
@@ -165,9 +166,10 @@ def cnn_model_trainer():
         embedding_config = config.embeddings.add()
         embedding_config.tensor_name = embedding.name
         embedding_config.metadata_path = LABELS     #labels
+
         # Specify the width and height of a single thumbnail.
-        # embedding_config.sprite.image_path = SPRITES
-        # embedding_config.sprite.single_image_dim.extend([28, 28])
+        embedding_config.sprite.image_path = SPRITES
+        embedding_config.sprite.single_image_dim.extend([28, 28])
         tf.contrib.tensorboard.plugins.projector.visualize_embeddings(sum_writer, config)
 
         for i in range(STEPS):
