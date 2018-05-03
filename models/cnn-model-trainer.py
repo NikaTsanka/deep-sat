@@ -20,7 +20,7 @@ decay = 0.9
 momentum = 0
 dropoutProb = 0.5
 
-version = 'test'
+version = 'adam-test0'
 output_dir = 'results-for-' + str(EPOCHS) + 'e' + str(BATCH_SIZE) + 'bs-' + version
 log_dir = os.path.join(output_dir, 'logs')
 log_name = 'lr' + str(lr) + 'd' + str(decay) + 'm' + str(momentum) + 'do' + str(dropoutProb)
@@ -76,6 +76,7 @@ class DeepSatData:
 
 
 def cnn_model_trainer():
+    # ALEXNET
     dataset = DeepSatData()
 
     x = tf.placeholder(tf.float32, shape=[None, 28, 28, 4], name='x')
@@ -109,15 +110,18 @@ def cnn_model_trainer():
     # classifier:add(nn.Threshold(0, 1e-6))
     full_3 = full_layer(full_2, 4)
 
-    predict = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=full_3, labels=y_))
+    # pred = tf.nn.softmax(logits=full_3, name='pred')  # for later prediction
+    pred_out = tf.argmax(full_3, 1, name='pred')
 
-    train_step = tf.train.RMSPropOptimizer(lr, decay, momentum).minimize(predict)
-    # train_step = tf.train.AdamOptimizer(lr)
+    cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=full_3, labels=y_))
 
-    correct_prediction = tf.equal(tf.argmax(full_3, 1), tf.argmax(y_, 1))
+    # train_step = tf.train.RMSPropOptimizer(lr, decay, momentum).minimize(cross_entropy)
+    train_step = tf.train.AdamOptimizer(lr).minimize(cross_entropy)
+
+    correct_prediction = tf.equal(pred_out, tf.argmax(y_, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32), name='accuracy')
 
-    tf.summary.scalar('loss', predict)
+    tf.summary.scalar('loss', cross_entropy)
     tf.summary.scalar('accuracy', accuracy)
     merged_sum = tf.summary.merge_all()
 
@@ -154,7 +158,7 @@ def cnn_model_trainer():
                 print(ep_print)
             if i % TEST_INTERVAL == 0:
                 acc = test(sess)
-                loss = sess.run(predict, feed_dict={x: batch_x, y_: batch_y, keep_prob: dropoutProb})
+                loss = sess.run(cross_entropy, feed_dict={x: batch_x, y_: batch_y, keep_prob: dropoutProb})
                 ep_test_print = "\nEPOCH:%d" % ((i/ONE_EPOCH) + 1) + " Step:" + str(i) + \
                                 "|| Minibatch Loss= " + "{:.4f}".format(loss) + \
                                 " Accuracy: {:.4}%".format(acc * 100)

@@ -147,6 +147,7 @@ def load_mat_data_test():
     #     print(len(i))
 
     # print(type(dataset['train_y']))
+    # A = np.array([[[[1,2],[1,2]],[[1,2],[1,2]]],[[[1,2],[1,2]],[[1,2],[1,2]]],[[[1,2],[1,2]],[[1,2],[1,2]]]])
 
 
 def load_mnist_data_test():
