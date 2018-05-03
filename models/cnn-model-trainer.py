@@ -3,10 +3,13 @@ import time
 import numpy as np
 import scipy.io
 import tensorflow as tf
+from tensorflow.contrib.tensorboard.plugins import projector
 from models.layers import conv_layer, max_pool_2x2, full_layer
 
 
-DATA_PATH = '/home/nikatsanka/Workspace/tensor-env/deep-sat-datasets/sat-4-full.mat'
+# DATA_PATH = '/home/nikatsanka/Workspace/tensor-env/deep-sat-datasets/sat-4-full.mat'
+DATA_PATH = 'dataset/sat-4-full.mat'
+
 # HYPERS
 NUM_SAMPLES = 400000
 EPOCHS = 1
@@ -19,6 +22,8 @@ lr = 0.0001
 decay = 0.9
 momentum = 0
 dropoutProb = 0.5
+
+LABELS = os.path.join(os.getcwd(), "label_last10000.tsv")
 
 version = 'test'
 output_dir = 'results-for-' + str(EPOCHS) + 'e' + str(BATCH_SIZE) + 'bs-' + version
@@ -74,6 +79,14 @@ class DeepSatData:
         self.train = DeepSatLoader('train').load_data()
         self.test  = DeepSatLoader('test').load_data()
 
+def create_tsv(ds):
+    labels = ['barren land', 'trees', 'grassland', 'none']
+    with open('metadata.tsv', 'w') as f:
+        y = ds.test.labels[-10000:]
+        for i in range(10000):
+            argmax = int(np.argmax(y[i]))
+            f.write("%s \n" % labels[argmax])
+
 
 def cnn_model_trainer():
     dataset = DeepSatData()
@@ -119,13 +132,26 @@ def cnn_model_trainer():
 
     tf.summary.scalar('loss', predict)
     tf.summary.scalar('accuracy', accuracy)
+
+    embedding_size = 200    # size of second to last fc layer
+    embedding_input = full_2
+    embedding = tf.Variable(tf.zeros([10000, embedding_size]), name="test_embedding")
+    assignment = embedding.assign(embedding_input)
+
     merged_sum = tf.summary.merge_all()
 
-    def test(test_sess):
+    def test(test_sess, assign):
         x_ = dataset.test.images.reshape(10, 10000, 28, 28, 4)
         y = dataset.test.labels.reshape(10, 10000, 4)
+        # test_acc = [test_sess.run([accuracy, assign], feed_dict={x: x_[im], y_: y[im], keep_prob: 1.0})
+        #                     for im in range(10)]
+        # test = list(zip(*test_acc))[0]  #gets the first item of each sublist in a list
+        # acc = np.mean(test)
+
         test_acc = np.mean([test_sess.run(accuracy, feed_dict={x: x_[im], y_: y[im], keep_prob: 1.0})
-                            for im in range(10)])
+                            for im in range(9)])
+
+        test_sess.run(assign, feed_dict={x: x_[9], y_: y[9], keep_prob: 1.0})
         return test_acc
 
     # config=config
@@ -136,7 +162,19 @@ def cnn_model_trainer():
         sum_writer.add_graph(sess.graph)
 
         # Create a Saver object
+        #max_to_keep: keep how many models to keep. Delete old ones.
         saver = tf.train.Saver(max_to_keep=MODELS_TO_KEEP)
+
+
+        # Projector
+        config = tf.contrib.tensorboard.plugins.projector.ProjectorConfig()
+        embedding_config = config.embeddings.add()
+        embedding_config.tensor_name = embedding.name
+        # embedding_config.sprite.image_path = SPRITES
+        embedding_config.metadata_path = LABELS
+        # Specify the width and height of a single thumbnail.
+        # embedding_config.sprite.single_image_dim.extend([28, 28])
+        tf.contrib.tensorboard.plugins.projector.visualize_embeddings(sum_writer, config)
 
         for i in range(STEPS):
             batch = dataset.train.next_batch(BATCH_SIZE)
@@ -153,7 +191,7 @@ def cnn_model_trainer():
                 write_to_file.write(ep_print)
                 print(ep_print)
             if i % TEST_INTERVAL == 0:
-                acc = test(sess)
+                acc = test(sess, assignment)
                 loss = sess.run(predict, feed_dict={x: batch_x, y_: batch_y, keep_prob: dropoutProb})
                 ep_test_print = "\nEPOCH:%d" % ((i/ONE_EPOCH) + 1) + " Step:" + str(i) + \
                                 "|| Minibatch Loss= " + "{:.4f}".format(loss) + \
@@ -161,10 +199,11 @@ def cnn_model_trainer():
                 write_to_file.write(ep_test_print)
                 print(ep_test_print)
                 # Create a checkpoint in every iteration
-                saver.save(sess, os.path.join(model_dir, model_name),
-                           global_step=i)
+                # saver.save(sess, os.path.join(model_dir, model_name),
+                #            global_step=i)
+                saver.save(sess, os.path.join(model_dir, 'model.ckpt'), global_step=i)
 
-        test(sess)
+        test(sess, assignment)
         sum_writer.close()
 
 
@@ -175,6 +214,8 @@ def mat_data_load_test():
 
     print(data.train.images.shape)
     print(data.train.labels.shape)
+
+    create_tsv(data)
 
     # for i in range(4):
     #     batch = data.train.next_batch(100)
