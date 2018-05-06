@@ -174,7 +174,7 @@ def cnn_model_trainer():
     tf.summary.scalar('accuracy', accuracy)
 
     # Setting up for the visualization of the data in Tensorboard
-    embedding_size = 200    # size of second to last fc layer
+    embedding_size = 256    # size of second to last fc layer
     embedding_input = full_2    # FC2 as input
     # Variable containing the points in visualization
     embedding = tf.Variable(tf.zeros([10000, embedding_size]), name="test_embedding")
