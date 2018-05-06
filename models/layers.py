@@ -20,10 +20,26 @@ def max_pool_2x2(x, kw, kh):
                           strides=[1, 2, 2, 1], padding='VALID')
 
 
+'''
+avg_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
+'''
+
+
+def avg_pool_2x2(x, kw, kh):
+    return tf.nn.avg_pool(x, ksize=[1, kw, kh, 1],
+                          strides=[1, 2, 2, 1], padding='VALID')
+
+
 def conv_layer(input, shape, pad):
     W = weight_variable(shape)
     b = bias_variable([shape[3]])
     return tf.nn.relu(conv2d(input, W, pad) + b)
+
+
+def conv_layer_no_relu(input, shape, pad):
+    W = weight_variable(shape)
+    b = bias_variable([shape[3]])
+    return conv2d(input, W, pad) + b
 
 
 def full_layer(input, size):
