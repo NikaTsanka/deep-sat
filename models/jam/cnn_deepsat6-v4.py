@@ -88,7 +88,7 @@ def run_simple_net():
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        sum_writer = tf.summary.FileWriter('logs/' + 'v4')
+        sum_writer = tf.summary.FileWriter('logs/' + 'v4_sat6')
         sum_writer.add_graph(sess.graph)
 
         for i in range(STEPS):
