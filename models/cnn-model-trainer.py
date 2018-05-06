@@ -22,8 +22,8 @@ decay = 0.9
 momentum = 0
 dropoutProb = 0.5
 
-LABELS = os.path.join(os.getcwd(), "label_last10000.tsv")  # Label path for visualization
-SPRITES = os.path.join(os.getcwd(), "sprite.png")
+LABELS = os.path.join(os.getcwd(), "metadata-sat4.tsv")  # Label path for visualization
+SPRITES = os.path.join(os.getcwd(), "sprite-sat4.png")
 
 version = 'test'
 output_dir = 'results-for-' + str(EPOCHS) + 'e' + str(BATCH_SIZE) + 'bs-' + version
@@ -243,7 +243,7 @@ def mat_data_load_test():
     ps = data.test.images[-10000:][..., :3]
 
     sprite = create_sprite_image(ps)
-    plt.imsave('sprite.png', sprite, cmap='Greys')
+    plt.imsave('sprite-sat4.png', sprite, cmap='Greys')
 
     print(ps.shape)
     # print(data.train.images.shape)

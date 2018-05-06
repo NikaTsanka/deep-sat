@@ -5,12 +5,13 @@ import scipy.io
 import tensorflow as tf
 from models.layers import conv_layer, max_pool_2x2, full_layer, conv_layer_no_relu, avg_pool_2x2
 
-DATA_PATH = 'dataset/sat-6-full.mat'
+# DATA_PATH = 'dataset/sat-6-full.mat'
+DATA_PATH = ''.join([os.getcwd(), '/', 'sat-6-full.mat'])
 
 # HYPERS
 NUM_SAMPLES = 324000
 NUM_TEST_SAMPLES = 8100
-EPOCHS = 1
+EPOCHS = 7
 BATCH_SIZE = 128
 STEPS = int((NUM_SAMPLES * EPOCHS) / BATCH_SIZE)
 ONE_EPOCH = int(NUM_SAMPLES / BATCH_SIZE)
@@ -24,7 +25,7 @@ dropoutProb = 0.5
 LABELS = os.path.join(os.getcwd(), "metadata-sat6.tsv")  # Label path for visualization
 SPRITES = os.path.join(os.getcwd(), "sprite-sat6.png")
 
-version = 'sat6-test'
+version = 'JamilaNet-sat6'
 output_dir = 'results-for-' + str(EPOCHS) + 'e' + str(BATCH_SIZE) + 'bs-' + version
 log_dir = os.path.join(output_dir, 'logs')
 log_name = 'lr' + str(lr) + 'd' + str(decay) + 'm' + str(momentum) + 'do' + str(dropoutProb)
