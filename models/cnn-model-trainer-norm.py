@@ -190,7 +190,7 @@ def cnn_model_trainer():
                             for im in range(10)])
 
         # Pass through the last 10,000 of the test set for visualization
-        test_sess.run([assign], feed_dict={x: x_[9], y_: y[9], keep_prob: 1.0})
+        test_sess.run([assign], feed_dict={x: x_[9], y_: y[9], keep_prob: 1.0, phase_train: False})
         return test_acc
 
     # config=config
@@ -232,7 +232,7 @@ def cnn_model_trainer():
                 print(ep_print)
             if i % TEST_INTERVAL == 0:
                 acc = test(sess, assignment)
-                loss = sess.run(cross_entropy, feed_dict={x: batch_x, y_: batch_y, keep_prob: dropoutProb, phase_train: False})
+                loss = sess.run(cross_entropy, feed_dict={x: batch_x, y_: batch_y, keep_prob: 1.0, phase_train: False})
                 ep_test_print = "\nEPOCH:%d" % ((i/ONE_EPOCH) + 1) + " Step:" + str(i) + \
                                 "|| Minibatch Loss= " + "{:.4f}".format(loss) + \
                                 " Accuracy: {:.4}%".format(acc * 100)

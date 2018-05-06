@@ -3,7 +3,7 @@ import time
 import numpy as np
 import scipy.io
 import tensorflow as tf
-from models.layers import conv_layer, max_pool_2x2, full_layer
+from models.layers import conv_layer, max_pool_2x2, full_layer, conv_layer_no_relu, avg_pool_2x2
 
 DATA_PATH = 'dataset/sat-6-full.mat'
 
@@ -30,7 +30,7 @@ log_dir = os.path.join(output_dir, 'logs')
 log_name = 'lr' + str(lr) + 'd' + str(decay) + 'm' + str(momentum) + 'do' + str(dropoutProb)
 output_file = 'output.txt'
 model_dir = os.path.join(output_dir, 'trained_models')
-model_name = 'saved_at_step-'
+model_name = 'model.ckpt'
 
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
@@ -76,6 +76,35 @@ class DeepSatData:
         self.test  = DeepSatLoader('test').load_data()
 
 
+def batch_norm(x, n_out, phase_train):
+    """
+    Batch normalization on convolutional maps.
+    Ref.: http://stackoverflow.com/questions/33949786/how-could-i-use-batch-normalization-in-tensorflow
+    Args:
+        x:           Tensor, 4D BHWD input maps
+        n_out:       integer, depth of input maps
+        phase_train: boolean tf.Varialbe, true indicates training phase
+        scope:       string, variable scope
+    Return:
+        normed:      batch-normalized maps
+    """
+
+    beta = tf.Variable(tf.constant(0.0, shape=[n_out]), name='beta', trainable=True)
+    gamma = tf.Variable(tf.constant(1.0, shape=[n_out]), name='gamma', trainable=True)
+    batch_mean, batch_var = tf.nn.moments(x, [0,1,2], name='moments')
+    ema = tf.train.ExponentialMovingAverage(decay=0.5)
+
+    def mean_var_with_update():
+        ema_apply_op = ema.apply([batch_mean, batch_var])
+        with tf.control_dependencies([ema_apply_op]):
+            return tf.identity(batch_mean), tf.identity(batch_var)
+
+    mean, var = tf.cond(phase_train, mean_var_with_update,
+                        lambda: (ema.average(batch_mean), ema.average(batch_var)))
+    normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-3)
+    return normed
+
+
 def cnn_model_trainer():
     # ALEXNET
     dataset = DeepSatData()
@@ -83,33 +112,44 @@ def cnn_model_trainer():
     x = tf.placeholder(tf.float32, shape=[None, 28, 28, 4], name='x')
     y_ = tf.placeholder(tf.float32, shape=[None, 6], name='y_')
     keep_prob = tf.placeholder(tf.float32, name='keep_prob')
+    phase_train = tf.placeholder(tf.bool, name='phase_train')
 
-    conv1 = conv_layer(x, shape=[3, 3, 4, 16], pad='VALID')
-    conv1_pool = max_pool_2x2(conv1, 2, 2)
+    conv1 = conv_layer_no_relu(x, shape=[3, 3, 4, 16], pad='SAME')
+    conv1_bn = batch_norm(conv1, 16, phase_train)
+    conv1_rl = tf.nn.relu(conv1_bn)
+    # conv1_pool = max_pool_2x2(conv1_rl, 2, 2) #28x28x4->14x14x16
 
-    conv2 = conv_layer(conv1_pool, shape=[3, 3, 16, 48], pad='SAME')
-    conv2_pool = max_pool_2x2(conv2, 3, 3)
+    conv2 = conv_layer_no_relu(conv1_rl, shape=[3, 3, 16, 32], pad='SAME')
+    conv2_bn = batch_norm(conv2, 32, phase_train)
+    conv2_rl = tf.nn.relu(conv2_bn)
+    conv2_pool = avg_pool_2x2(conv2_rl, 2, 2)  # 14x14x16->7x7x32
 
-    conv3 = conv_layer(conv2_pool, shape=[3, 3, 48, 96], pad='SAME')
-    # conv3_pool = max_pool_2x2(conv3)
+    conv3 = conv_layer(conv2_pool, shape=[3, 3, 32, 64], pad='SAME')
+    conv3_bn = batch_norm(conv3, 64, phase_train)
+    conv3_rl = tf.nn.relu(conv3_bn)
+    conv3_pool = avg_pool_2x2(conv3_rl, 2, 2)  # 7x7x32 ->7x7x64
 
-    conv4 = conv_layer(conv3, shape=[3, 3, 96, 64], pad='SAME')
-    # conv4_pool = max_pool_2x2(conv4)
+    conv4 = conv_layer(conv3_pool, shape=[3, 3, 64, 96], pad='SAME')
+    conv4_bn = batch_norm(conv4, 96, phase_train)
+    conv4_rl = tf.nn.relu(conv4_bn)
+    # conv4_pool = max_pool_2x2(conv4) # 7x7x64 -> 7x7x96
 
-    conv5 = conv_layer(conv4, shape=[3, 3, 64, 64], pad='SAME')
-    conv5_pool = max_pool_2x2(conv5, 2, 2)
+    conv5 = conv_layer(conv4_rl, shape=[3, 3, 96, 64], pad='SAME')
+    conv5_bn = batch_norm(conv5, 64, phase_train)
+    conv5_rl = tf.nn.relu(conv5_bn)
+    conv5_pool = avg_pool_2x2(conv5_rl, 2, 2)  # 7x7x96 ->7x7x64
 
     _flat = tf.reshape(conv5_pool, [-1, 3 * 3 * 64])
     _drop1 = tf.nn.dropout(_flat, keep_prob=keep_prob)
 
     # full_1 = tf.nn.relu(full_layer(_drop1, 200))
-    full_1 = tf.nn.relu(full_layer(_drop1, 200))
+    full_1 = tf.nn.relu(full_layer(_drop1, 512))
     # -- until here
     # classifier:add(nn.Threshold(0, 1e-6))
     _drop2 = tf.nn.dropout(full_1, keep_prob=keep_prob)
-    full_2 = tf.nn.relu(full_layer(_drop2, 200))
+    full_2 = tf.nn.relu(full_layer(_drop2, 256))
     # classifier:add(nn.Threshold(0, 1e-6))
-    full_3 = full_layer(full_2, 6)
+    full_3 = full_layer(full_2, 4)
 
     # pred = tf.nn.softmax(logits=full_3, name='pred')  # for later prediction
     pred_out = tf.argmax(full_3, 1, name='pred')
@@ -138,11 +178,11 @@ def cnn_model_trainer():
         x_ = dataset.test.images.reshape(10, NUM_TEST_SAMPLES, 28, 28, 4)
         y = dataset.test.labels.reshape(10, NUM_TEST_SAMPLES, 6)
 
-        test_acc = np.mean([test_sess.run(accuracy, feed_dict={x: x_[im], y_: y[im], keep_prob: 1.0})
+        test_acc = np.mean([test_sess.run(accuracy, feed_dict={x: x_[im], y_: y[im], keep_prob: 1.0, phase_train: False})
                             for im in range(10)])
 
         # Pass through the last 8100 of the test set for visualization
-        test_sess.run([assign], feed_dict={x: x_[9], y_: y[9], keep_prob: 1.0})
+        test_sess.run([assign], feed_dict={x: x_[9], y_: y[9], keep_prob: 1.0, phase_train: False})
         return test_acc
 
     # config=config
@@ -172,9 +212,9 @@ def cnn_model_trainer():
             batch_x = batch[0]
             batch_y = batch[1]
 
-            sess.run(train_step, feed_dict={x: batch_x, y_: batch_y, keep_prob: dropoutProb})
+            sess.run(train_step, feed_dict={x: batch_x, y_: batch_y, keep_prob: dropoutProb, phase_train: True})
 
-            _, summ = sess.run([train_step, merged_sum], feed_dict={x: batch_x, y_: batch_y, keep_prob: dropoutProb})
+            _, summ = sess.run([train_step, merged_sum], feed_dict={x: batch_x, y_: batch_y, keep_prob: dropoutProb, phase_train: True})
             sum_writer.add_summary(summ, i)
 
             if i % ONE_EPOCH == 0:
@@ -183,16 +223,15 @@ def cnn_model_trainer():
                 print(ep_print)
             if i % TEST_INTERVAL == 0:
                 acc = test(sess, assignment)
-                loss = sess.run(cross_entropy, feed_dict={x: batch_x, y_: batch_y, keep_prob: dropoutProb})
+                loss = sess.run(cross_entropy, feed_dict={x: batch_x, y_: batch_y, keep_prob: 1.0, phase_train: False})
                 ep_test_print = "\nEPOCH:%d" % ((i/ONE_EPOCH) + 1) + " Step:" + str(i) + \
                                 "|| Minibatch Loss= " + "{:.4f}".format(loss) + \
                                 " Accuracy: {:.4}%".format(acc * 100)
                 write_to_file.write(ep_test_print)
                 print(ep_test_print)
                 # Create a checkpoint in every iteration
-                # saver.save(sess, os.path.join(model_dir, model_name),
-                #            global_step=i)
-                saver.save(sess, os.path.join(model_dir, 'model.ckpt'), global_step=i)
+                saver.save(sess, os.path.join(model_dir, model_name),
+                           global_step=i)
 
         test(sess, assignment)
         sum_writer.close()
