@@ -3,7 +3,7 @@ import time
 import numpy as np
 import scipy.io
 import tensorflow as tf
-from models.layers import conv_layer, max_pool_2x2, full_layer, conv_layer_no_relu, avg_pool_2x2
+from layers import conv_layer, max_pool_2x2, full_layer, conv_layer_no_relu, avg_pool_2x2
 
 
 # DATA_PATH = '/home/nikatsanka/Workspace/tensor-env/deep-sat-datasets/sat-4-full.mat'
