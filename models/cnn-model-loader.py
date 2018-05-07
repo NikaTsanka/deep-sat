@@ -3,11 +3,14 @@ import numpy as np
 import scipy.io
 import tensorflow as tf
 import os
+import random
+np.set_printoptions(suppress=True)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 DATA_PATH = '/home/nikatsanka/Workspace/tensor-env/deep-sat-datasets/sat-4-full.mat'
-IMAGE_PATH = '/home/nikatsanka/Dropbox/school-work/machine-learning/term-proj/deep-sat-ml-proj/models/single-test-image.mat'
+# IMAGE_PATH = '/home/nikatsanka/Dropbox/school-work/machine-learning/term-proj/deep-sat-ml-proj/models/single-test-image.mat'
+IMAGE_PATH = '/home/nikatsanka/Dropbox/school-work/machine-learning/term-proj/deep-sat-ml-proj/models/100-test-image.mat'
 TEST_BATCH_SIZE = 128
 
 
@@ -41,17 +44,18 @@ class DeepSatData:
 
 def cnn_model_predict_im():
     import matplotlib.pyplot as plt
-    labels = ['barren land', 'trees', 'grassland', 'none']
+    labels = ('barren land', 'trees', 'grassland', 'none')
     # test_batch_size = 500
-    image = scipy.io.loadmat(IMAGE_PATH)
-    # test_image = image['image']
-    # restore the training graph
+    test_data = scipy.io.loadmat(IMAGE_PATH)
+    test_images = test_data['image']
+    test_labels = test_data['label']
+
     with tf.Session() as sess:
         # init = tf.global_variables_initializer()
         # sess.run(init)
         # First let's load meta graph and restore weights
-        loader = tf.train.import_meta_graph('./results-for-1e128bs-adam-test0/trained_models/saved_at_step--2560.meta')
-        loader.restore(sess, tf.train.latest_checkpoint('./results-for-1e128bs-adam-test0/trained_models/'))
+        loader = tf.train.import_meta_graph('./results-for-1e128bs-test1/trained_models/model.ckpt-2560.meta')
+        loader.restore(sess, tf.train.latest_checkpoint('./results-for-1e128bs-test1/trained_models/'))
 
         # Now, let's access and create placeholders variables and
         # create feed-dict to feed new data
@@ -64,17 +68,43 @@ def cnn_model_predict_im():
         prediction = graph.get_tensor_by_name("pred:0")
         # accuracy = graph.get_tensor_by_name("accuracy:0")
 
-        pred_out = sess.run(prediction, feed_dict={X: image['image'], keep_prob: 1.0})
-        # test_acc = np.mean([sess.run(accuracy, feed_dict={X: test_images[im], Y: test_label[im], keep_prob: 1.0})
-        #                     for im in range(10)])
-        # print("Testing Accuracy:", test_acc)
-        # print(type(image['label']))
-        # print()
-        print('Prediction:', labels[pred_out[0]], '\nActual Label:', labels[int(np.argmax(image['label']))])
-        fig_title = 'Predicted Label: ' + labels[pred_out[0]] + '. Actual Label: ' + labels[int(np.argmax(image['label']))]
-        plt.figure()
-        plt.title(fig_title)
-        plt.imshow(image['image'][..., :3][0])
+        pred_out = []
+
+        random_indexes = []
+
+        for i in range(5):
+            random_indexes.append(random.randint(0, 100))
+
+        for i in random_indexes:
+            # print(random.randint(0, 101))
+            print(i)
+            pred_out.append(sess.run(prediction, feed_dict={X: test_images[i][np.newaxis, ...], keep_prob: 1.0})[0])
+
+        width = 0.5
+
+        def autolabel(rects, ax):
+            """
+            Attach a text label above each bar displaying its height
+            """
+            for rect in rects:
+                height = rect.get_height()
+                ax.text(rect.get_x() + rect.get_width() / 2., 1.05 * height,
+                         '%f' % float(height), ha='center', va='bottom')
+
+        fig, ax = plt.subplots(nrows=5, ncols=2, figsize=(15, 15))
+
+        for im, row in enumerate(ax):
+            print(im)
+            for i, col in enumerate(row):
+                # print(i)
+                if i == 0:
+                    print(random_indexes[im])
+                    col.imshow(test_images[random_indexes[im]])  # [..., :3]
+                    col.set_ylabel(labels[int(np.argmax(test_labels[random_indexes[im]]))])
+                else:
+                    l = col.bar(labels, pred_out[im], width, color='#f49141')
+                    col.set_ylabel('Prediction')
+                    autolabel(l, col)
         plt.show()
 
 
@@ -126,18 +156,27 @@ def test_data_writer():
     # print(test_images.shape)
     # print(test_label.shape)
 
-    batch_im = data.test.next_batch(4)
+    batch_im = data.test.next_batch(100)
     # print(batch_im.shape)
     print(batch_im[0].shape)
     print(batch_im[1].shape)
     # print(batch_im[1])
-    _im = batch_im[0][-1:]
-    _lb = batch_im[1][-1:]
+    # _im = batch_im[0][-1:]
+    # _lb = batch_im[1][-1:]
+    _im = batch_im[0][:]
+    _lb = batch_im[1][:]
     print(_im.shape)
     print(_lb.shape)
 
     im = {'image': _im, 'label': _lb}
-    scipy.io.savemat('single-test-image', im)
+    scipy.io.savemat('100-test-image', im)
+
+    '''
+    (100, 28, 28, 4)
+    (100, 4)
+    (100, 28, 28, 4)
+    (100, 4)
+    '''
 
 
 if __name__ == "__main__":

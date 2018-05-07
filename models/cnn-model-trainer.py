@@ -6,8 +6,8 @@ import tensorflow as tf
 from models.layers import conv_layer, max_pool_2x2, full_layer
 
 
-# DATA_PATH = '/home/nikatsanka/Workspace/tensor-env/deep-sat-datasets/sat-4-full.mat'
-DATA_PATH = 'dataset/sat-4-full.mat'
+DATA_PATH = '/home/nikatsanka/Workspace/tensor-env/deep-sat-datasets/sat-4-full.mat'
+# DATA_PATH = 'dataset/sat-4-full.mat'
 
 # HYPERS
 NUM_SAMPLES = 400000
@@ -25,7 +25,7 @@ dropoutProb = 0.5
 LABELS = os.path.join(os.getcwd(), "metadata-sat4.tsv")  # Label path for visualization
 SPRITES = os.path.join(os.getcwd(), "sprite-sat4.png")
 
-version = 'test'
+version = 'test1'
 output_dir = 'results-for-' + str(EPOCHS) + 'e' + str(BATCH_SIZE) + 'bs-' + version
 log_dir = os.path.join(output_dir, 'logs')
 log_name = 'lr' + str(lr) + 'd' + str(decay) + 'm' + str(momentum) + 'do' + str(dropoutProb)
@@ -115,15 +115,14 @@ def cnn_model_trainer():
     # classifier:add(nn.Threshold(0, 1e-6))
     full_3 = full_layer(full_2, 4)
 
-    # pred = tf.nn.softmax(logits=full_3, name='pred')  # for later prediction
-    pred_out = tf.argmax(full_3, 1, name='pred')
+    pred = tf.nn.softmax(logits=full_3, name='pred')  # for later prediction
 
     cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=full_3, labels=y_))
 
     # train_step = tf.train.RMSPropOptimizer(lr, decay, momentum).minimize(cross_entropy)
     train_step = tf.train.AdamOptimizer(lr).minimize(cross_entropy)
 
-    correct_prediction = tf.equal(pred_out, tf.argmax(y_, 1))
+    correct_prediction = tf.equal(tf.argmax(full_3, 1), tf.argmax(y_, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32), name='accuracy')
 
     tf.summary.scalar('loss', cross_entropy)
