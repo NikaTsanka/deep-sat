@@ -1,3 +1,13 @@
+'''
+Group Project - Code
+
+Members: David Ng Wu, Nika Tsankashvili and Jamila Vargas
+05/24/2018
+High Performance Machine Learning
+Prof. Jianting Zhang
+
+'''
+
 import os
 import time
 import numpy as np
@@ -5,13 +15,13 @@ import scipy.io
 import tensorflow as tf
 from layers import conv_layer, max_pool_2x2, full_layer, conv_layer_no_relu, avg_pool_2x2
 
-# DATA_PATH = 'dataset/sat-6-full.mat'
-DATA_PATH = ''.join([os.getcwd(), '/', 'sat-6-full.mat'])
+DATA_PATH = '/home/nikatsanka/Workspace/tensor-env/deep-sat-datasets/sat-6-full.mat'
+# DATA_PATH = ''.join([os.getcwd(), '/', 'sat-6-full.mat'])
 
 # HYPERS
 NUM_SAMPLES = 324000
 NUM_TEST_SAMPLES = 8100
-EPOCHS = 7
+EPOCHS = 13
 BATCH_SIZE = 128
 STEPS = int((NUM_SAMPLES * EPOCHS) / BATCH_SIZE)
 ONE_EPOCH = int(NUM_SAMPLES / BATCH_SIZE)
@@ -25,7 +35,7 @@ dropoutProb = 0.5
 LABELS = os.path.join(os.getcwd(), "metadata-sat6.tsv")  # Label path for visualization
 SPRITES = os.path.join(os.getcwd(), "sprite-sat6.png")
 
-version = 'JamilaNet-sat6'
+version = 'DNJ-NET-sat6'
 output_dir = 'results-for-' + str(EPOCHS) + 'e' + str(BATCH_SIZE) + 'bs-' + version
 log_dir = os.path.join(output_dir, 'logs')
 log_name = 'lr' + str(lr) + 'd' + str(decay) + 'm' + str(momentum) + 'do' + str(dropoutProb)
@@ -60,8 +70,6 @@ class DeepSatLoader:
         data = scipy.io.loadmat(DATA_PATH)
         self.images = data[self._key + '_x'].transpose(3, 0, 1, 2).astype(float) / 255
         self.labels = data[self._key + '_y'].transpose(1, 0)
-        # print(self.images.shape)
-        # print(self.labels.shape)
         return self
 
     def next_batch(self, batch_size):
@@ -107,7 +115,6 @@ def batch_norm(x, n_out, phase_train):
 
 
 def cnn_model_trainer():
-    # ALEXNET
     dataset = DeepSatData()
 
     x = tf.placeholder(tf.float32, shape=[None, 28, 28, 4], name='x')
@@ -118,40 +125,37 @@ def cnn_model_trainer():
     conv1 = conv_layer_no_relu(x, shape=[3, 3, 4, 16], pad='SAME')
     conv1_bn = batch_norm(conv1, 16, phase_train)
     conv1_rl = tf.nn.relu(conv1_bn)
-    # conv1_pool = max_pool_2x2(conv1_rl, 2, 2) #28x28x4->14x14x16
 
     conv2 = conv_layer_no_relu(conv1_rl, shape=[3, 3, 16, 32], pad='SAME')
     conv2_bn = batch_norm(conv2, 32, phase_train)
     conv2_rl = tf.nn.relu(conv2_bn)
-    conv2_pool = avg_pool_2x2(conv2_rl, 2, 2)  # 14x14x16->7x7x32
+    conv2_pool = avg_pool_2x2(conv2_rl, 2, 2)
 
-    conv3 = conv_layer(conv2_pool, shape=[3, 3, 32, 64], pad='SAME')
+    conv3 = conv_layer_no_relu(conv2_pool, shape=[3, 3, 32, 64], pad='SAME')
     conv3_bn = batch_norm(conv3, 64, phase_train)
     conv3_rl = tf.nn.relu(conv3_bn)
-    conv3_pool = avg_pool_2x2(conv3_rl, 2, 2)  # 7x7x32 ->7x7x64
+    conv3_pool = avg_pool_2x2(conv3_rl, 2, 2)
 
-    conv4 = conv_layer(conv3_pool, shape=[3, 3, 64, 96], pad='SAME')
+    conv4 = conv_layer_no_relu(conv3_pool, shape=[3, 3, 64, 96], pad='SAME')
     conv4_bn = batch_norm(conv4, 96, phase_train)
     conv4_rl = tf.nn.relu(conv4_bn)
-    # conv4_pool = max_pool_2x2(conv4) # 7x7x64 -> 7x7x96
 
-    conv5 = conv_layer(conv4_rl, shape=[3, 3, 96, 64], pad='SAME')
+    conv5 = conv_layer_no_relu(conv4_rl, shape=[3, 3, 96, 64], pad='SAME')
     conv5_bn = batch_norm(conv5, 64, phase_train)
     conv5_rl = tf.nn.relu(conv5_bn)
-    conv5_pool = avg_pool_2x2(conv5_rl, 2, 2)  # 7x7x96 ->7x7x64
+    conv5_pool = avg_pool_2x2(conv5_rl, 2, 2)
 
     _flat = tf.reshape(conv5_pool, [-1, 3 * 3 * 64])
     _drop1 = tf.nn.dropout(_flat, keep_prob=keep_prob)
 
-    # full_1 = tf.nn.relu(full_layer(_drop1, 200))
     full_1 = tf.nn.relu(full_layer(_drop1, 512))
-    # -- until here
-    # classifier:add(nn.Threshold(0, 1e-6))
     _drop2 = tf.nn.dropout(full_1, keep_prob=keep_prob)
-    full_2 = tf.nn.relu(full_layer(_drop2, 256))
-    # classifier:add(nn.Threshold(0, 1e-6))
-    full_3 = full_layer(full_2, 4)
 
+    full_2 = tf.nn.relu(full_layer(_drop2, 256))
+
+    full_3 = full_layer(full_2, 6)
+
+    # network output as softmax tensor for prediction for presentation
     pred = tf.nn.softmax(logits=full_3, name='pred')  # for later prediction
 
     cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=full_3, labels=y_))
@@ -185,7 +189,6 @@ def cnn_model_trainer():
         test_sess.run([assign], feed_dict={x: x_[9], y_: y[9], keep_prob: 1.0, phase_train: False})
         return test_acc
 
-    # config=config
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         # Tensorboard
@@ -248,10 +251,7 @@ def create_tsv(ds):
 
 
 def create_sprite_image(images):
-    # print(type(images))
-    # if isinstance(images, list):
-    #     print('TRUE')
-    #     images = np.array(images)
+    # Creates sprite image from a given input
     img_h = images.shape[1]  # 28
     img_w = images.shape[2]  # 28
     n_plots = int(np.ceil(np.sqrt(images.shape[0])))  # 100
@@ -268,82 +268,9 @@ def create_sprite_image(images):
     return sprite_image
 
 
-def mat_data_load_test():
-    import matplotlib.pyplot as plt
-
-    data = DeepSatData()
-
-    # (10000, 28, 28, 3)
-    ps = data.test.images[-NUM_TEST_SAMPLES:][..., :3]
-
-    sprite = create_sprite_image(ps)
-    plt.imsave('sprite-sat6.png', sprite, cmap='Greys')
-
-    print(ps.shape)
-    # print(data.train.images.shape)
-    # print(data.train.labels.shape)
-    # (400000, 28, 28, 4)
-    # (400000, 4)
-
-    create_tsv(data)
-
-    # for i in range(4):
-    #     batch = data.train.next_batch(100)
-    #     print(batch[0].shape)
-    #     print(batch[1].shape)
-    # ind = 5
-    # batch = data.train.next_batch(ind)
-    # print(batch[0][0,0,0,0])
-    # print(type(batch[0][0,0,0,0]))
-
-    # plt.figure()
-    # im = []
-    # for i in range(ind):
-    #     im.append(batch[0][:,:,:,i])
-    #     print(batch[1][:,i])
-    # # print(im.shape)
-    # for i in range(ind):
-    #     plt.imshow(im[i])
-    #     plt.show()
-
-    # plt.imshow(im)
-    # plt.show()
-    # display_cifar(batch[0], 28)
-
-    '''
-    (28, 28, 4, 400000)
-    (4, 400000)
-    (28, 28, 4, 100000)
-    (4, 100000)
-    (4, 2)
-    '''
-    # dataset = scipy.io.loadmat(DATA_PATH)
-    # train_x = dataset['train_x']
-    # train_y = dataset['train_y']
-    #
-    # test_x = dataset['test_x']
-    # test_y = dataset['test_y']
-    #
-    # labels = dataset['annotations']
-    #
-    # # print(type(train_x))
-    # print(train_x.shape)
-    # print(train_y.shape)
-    # print(test_x.shape)
-    # print(test_y.shape)
-    #
-    # print(labels.shape)
-
-    # for i in dataset.values():
-    #     print(len(i))
-
-    # print(type(dataset['train_y']))
-
-
 if __name__ == "__main__":
     start_time = time.time()
     cnn_model_trainer()
-    # mat_data_load_test()
     time_stop = "\n--- %s seconds ---" % (time.time() - start_time)
     write_to_file.write(time_stop)
     print(time_stop)

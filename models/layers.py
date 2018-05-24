@@ -1,3 +1,13 @@
+'''
+Group Project - Code
+
+Members: David Ng Wu, Nika Tsankashvili and Jamila Vargas
+05/24/2018
+High Performance Machine Learning
+Prof. Jianting Zhang
+
+'''
+
 import tensorflow as tf
 
 
@@ -18,11 +28,6 @@ def conv2d(x, W, p):
 def max_pool_2x2(x, kw, kh):
     return tf.nn.max_pool(x, ksize=[1, kw, kh, 1],
                           strides=[1, 2, 2, 1], padding='VALID')
-
-
-'''
-avg_pool(value, ksize, strides, padding, data_format="NHWC", name=None):
-'''
 
 
 def avg_pool_2x2(x, kw, kh):
